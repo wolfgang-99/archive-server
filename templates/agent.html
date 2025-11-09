@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CT Report Dictation</title>
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+    <!-- For Word document export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 30px;
+        }
+
+        .left-panel, .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Control Panel */
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(17, 153, 142, 0.4);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+            color: white;
+        }
+
+        .btn-stop:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(235, 51, 73, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Status */
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .status.ready {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.recording {
+            background: #fff3cd;
+            color: #856404;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Voice Volume Visualizer */
+        .volume-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .volume-bar-container {
+            height: 60px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .volume-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #11998e 0%, #38ef7d 50%, #ffd700 75%, #ff6b6b 100%);
+            width: 0%;
+            transition: width 0.1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .volume-level {
+            text-align: center;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        /* Waveform Visualizer */
+        #waveform {
+            width: 100%;
+            height: 120px;
+            background: #2c3e50;
+            border-radius: 10px;
+        }
+
+        /* Commands */
+        .commands-list {
+            list-style: none;
+        }
+
+        .commands-list li {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .commands-list strong {
+            color: #667eea;
+        }
+
+        /* Report Display */
+        #reportDisplay {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            color: #333;
+        }
+
+        #reportDisplay:empty::before {
+            content: 'Your dictated CT report will appear here...\A\AAfter clicking START:\A1. Say "Start dictation" to begin recording\A2. Dictate your report naturally\A3. Say "Stop dictation" to pause\A4. Say "Finalize report" when done';
+            color: #999;
+            white-space: pre;
+        }
+
+        /* Activity Log */
+        #activityLog {
+            background: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #95a5a6;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .btn-action {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-clear {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .btn-save {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-word {
+            background: #2b579a;
+            color: white;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 CT Report Dictation Assistant</h1>
+            <p>Professional Voice-Activated Medical Transcription</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Panel -->
+            <div class="left-panel">
+                <!-- Controls -->
+                <div class="card">
+                    <h2>🎛️ Controls</h2>
+                    <div class="controls">
+                        <button id="connectBtn" class="btn btn-start">
+                            🎤 START DICTATION
+                        </button>
+                        <button id="disconnectBtn" class="btn btn-stop" disabled>
+                            ⏹️ STOP
+                        </button>
+                    </div>
+                    <div id="status" class="status ready">
+                        ⚪ Ready to connect
+                    </div>
+                </div>
+
+                <!-- Voice Volume -->
+                <div class="card">
+                    <h2>🎙️ Voice Level</h2>
+                    <div class="volume-container">
+                        <div class="volume-bar-container">
+                            <div id="volumeBar" class="volume-bar">
+                                <span id="volumeText"></span>
+                            </div>
+                        </div>
+                        <div class="volume-level" id="volumeLevel">Speak to see levels</div>
+                        <canvas id="waveform"></canvas>
+                    </div>
+                </div>
+
+                <!-- Commands -->
+                <div class="card">
+                    <h2>📝 Voice Commands</h2>
+                    <ul class="commands-list">
+                        <li><strong>"Start dictation"</strong> - Begin recording</li>
+                        <li><strong>"Stop dictation"</strong> - Pause recording</li>
+                        <li><strong>"New section findings"</strong> - New section</li>
+                        <li><strong>"Delete last sentence"</strong> - Remove last</li>
+                        <li><strong>"Finalize report"</strong> - Complete report</li>
+                    </ul>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="card">
+                    <h2>📋 Activity Log</h2>
+                    <div id="activityLog"></div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="right-panel">
+                <!-- Report Display -->
+                <div class="card" style="flex: 1;">
+                    <h2>📄 Current Report</h2>
+                    <div id="reportDisplay"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="card">
+                    <h2>💾 Actions</h2>
+                    <div class="action-buttons">
+                        <button class="btn-action btn-clear" onclick="clearReport()">
+                            🗑️ Clear
+                        </button>
+                        <button class="btn-action btn-save" onclick="saveAsText()">
+                            💾 Save TXT
+                        </button>
+                        <button class="btn-action btn-word" onclick="saveAsWord()">
+                            📝 Save DOCX
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { Room, RoomEvent, Track } = LivekitClient;
+        
+        let room = null;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let animationId = null;
+
+        // Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const statusDiv = document.getElementById('status');
+        const reportDisplay = document.getElementById('reportDisplay');
+        const activityLog = document.getElementById('activityLog');
+        const volumeBar = document.getElementById('volumeBar');
+        const volumeText = document.getElementById('volumeText');
+        const volumeLevel = document.getElementById('volumeLevel');
+        const waveform = document.getElementById('waveform');
+        const waveformCtx = waveform.getContext('2d');
+
+        // Set canvas size
+        waveform.width = waveform.offsetWidth;
+        waveform.height = 120;
+
+        // Log function
+        function addLog(message) {
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            activityLog.insertBefore(entry, activityLog.firstChild);
+            
+            // Keep only last 20 entries
+            while (activityLog.children.length > 20) {
+                activityLog.removeChild(activityLog.lastChild);
+            }
+        }
+
+        // Update status
+        function updateStatus(text, className) {
+            statusDiv.textContent = text;
+            statusDiv.className = `status ${className}`;
+        }
+
+        // Volume visualization
+        function visualizeVolume() {
+            if (!analyser) return;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteTimeDomainData(dataArray);
+
+            // Calculate volume level
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                const normalized = (dataArray[i] - 128) / 128;
+                sum += normalized * normalized;
+            }
+            const volume = Math.sqrt(sum / dataArray.length) * 100;
+
+            // Update volume bar
+            volumeBar.style.width = `${Math.min(volume * 2, 100)}%`;
+            volumeText.textContent = `${Math.round(volume)}%`;
+            volumeLevel.textContent = volume > 50 ? '🔊 Good level' : volume > 20 ? '🔉 Speak louder' : '🔈 Too quiet';
+
+            // Draw waveform
+            waveformCtx.fillStyle = '#2c3e50';
+            waveformCtx.fillRect(0, 0, waveform.width, waveform.height);
+
+            waveformCtx.lineWidth = 2;
+            waveformCtx.strokeStyle = '#38ef7d';
+            waveformCtx.beginPath();
+
+            const sliceWidth = waveform.width / dataArray.length;
+            let x = 0;
+
+            for (let i = 0; i < dataArray.length; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * waveform.height / 2;
+
+                if (i === 0) {
+                    waveformCtx.moveTo(x, y);
+                } else {
+                    waveformCtx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            waveformCtx.lineTo(waveform.width, waveform.height / 2);
+            waveformCtx.stroke();
+
+            animationId = requestAnimationFrame(visualizeVolume);
+        }
+
+        // Report state
+        let reportLines = [];
+        let isDictating = false;
+
+        // Function to update report display
+        function updateReportDisplay() {
+            reportDisplay.textContent = reportLines.join('\n');
+            reportDisplay.scrollTop = reportDisplay.scrollHeight;
+        }
+
+        // Connect to room
+        connectBtn.onclick = async () => {
+            try {
+                addLog('🔄 Connecting to server...');
+                
+                // Get token from backend
+                const response = await fetch('http://localhost:5000/livekit_token');
+                const { url, token } = await response.json();
+
+                // Create room
+                room = new Room();
+                
+                // Event: Agent joined
+                room.on(RoomEvent.ParticipantConnected, (participant) => {
+                    addLog(`✅ Agent joined: ${participant.identity}`);
+                });
+
+                // Event: Audio track from agent
+                room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    if (track.kind === Track.Kind.Audio) {
+                        addLog(`🔊 Receiving audio from ${participant.identity}`);
+                        const audioElement = track.attach();
+                        document.body.appendChild(audioElement);
+                    }
+                });
+
+                // Event: Data messages from agent (TRANSCRIPTIONS!)
+                room.on(RoomEvent.DataReceived, (payload, participant, kind) => {
+                    try {
+                        const decoder = new TextDecoder();
+                        const data = JSON.parse(decoder.decode(payload));
+                        
+                        console.log('📨 Received data:', data);
+                        
+                        switch(data.type) {
+                            case 'transcription':
+                                addLog(`🎤 Heard: "${data.text}"`);
+                                break;
+                                
+                            case 'status':
+                                addLog(`ℹ️ ${data.message}`);
+                                isDictating = data.isDictating;
+                                if (isDictating) {
+                                    updateStatus('🔴 RECORDING - Dictating in progress...', 'recording');
+                                } else {
+                                    updateStatus('🟡 Paused - Say "Start dictation" to resume', 'connected');
+                                }
+                                break;
+                                
+                            case 'new_section':
+                                reportLines.push('');
+                                reportLines.push('');
+                                reportLines.push(`${data.section}:`);
+                                updateReportDisplay();
+                                addLog(`📋 New section: ${data.section}`);
+                                break;
+                                
+                            case 'dictation':
+                                reportLines.push(data.text);
+                                updateReportDisplay();
+                                addLog(`📝 Recorded`);
+                                break;
+                                
+                            case 'delete_last':
+                                if (reportLines.length > 0) {
+                                    const deleted = reportLines.pop();
+                                    updateReportDisplay();
+                                    addLog(`🗑️ Deleted: "${deleted}"`);
+                                }
+                                break;
+                                
+                            case 'finalize':
+                                reportLines.push('');
+                                reportLines.push('');
+                                reportLines.push(`[REPORT FINALIZED - ${new Date().toLocaleString()}]`);
+                                updateReportDisplay();
+                                addLog(`✅ Report finalized!`);
+                                updateStatus('✅ Report Complete', 'connected');
+                                break;
+                        }
+                    } catch (error) {
+                        console.error('Error processing data:', error);
+                        addLog(`❌ Error: ${error.message}`);
+                    }
+                });
+
+                // Connect
+                await room.connect(url, token);
+                updateStatus('🟢 Connected to room', 'connected');
+                addLog('✅ Connected successfully');
+
+                // Enable microphone
+                await room.localParticipant.setMicrophoneEnabled(true);
+                updateStatus('🎤 Microphone active - Say "Start dictation"', 'connected');
+                addLog('🎤 Microphone enabled - Agent listening');
+
+                // Setup volume visualization
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new AudioContext();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+                analyser.fftSize = 2048;
+                visualizeVolume();
+
+                // Update buttons
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+
+            } catch (error) {
+                addLog(`❌ Error: ${error.message}`);
+                updateStatus('❌ Connection failed', 'ready');
+            }
+        };
+
+        // Disconnect
+        disconnectBtn.onclick = () => {
+            if (room) {
+                room.disconnect();
+                updateStatus('⚪ Disconnected', 'ready');
+                addLog('⏹️ Disconnected from room');
+            }
+
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+
+            if (audioContext) {
+                audioContext.close();
+            }
+
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+        };
+
+        // Action functions
+        function clearReport() {
+            if (confirm('Clear the current report?')) {
+                reportDisplay.textContent = '';
+                addLog('🗑️ Report cleared');
+            }
+        }
+
+        function saveAsText() {
+            const text = reportDisplay.textContent;
+            if (!text) {
+                alert('No report to save!');
+                return;
+            }
+
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `CT_Report_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            addLog('💾 Report saved as TXT');
+        }
+
+        async function saveAsWord() {
+            const text = reportDisplay.textContent;
+            if (!text) {
+                alert('No report to save!');
+                return;
+            }
+
+            const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+
+            // Create document
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: [
+                        new Paragraph({
+                            text: "CT RADIOLOGY REPORT",
+                            heading: HeadingLevel.HEADING_1,
+                        }),
+                        new Paragraph({
+                            text: `Date: ${new Date().toLocaleDateString()}`,
+                            spacing: { after: 200 },
+                        }),
+                        ...text.split('\n').map(line => 
+                            new Paragraph({
+                                children: [new TextRun(line)],
+                            })
+                        ),
+                    ],
+                }],
+            });
+
+            // Generate and save
+            const blob = await Packer.toBlob(doc);
+            saveAs(blob, `CT_Report_${new Date().toISOString().slice(0,10)}.docx`);
+            addLog('📝 Report saved as DOCX');
+        }
+
+        // Simulate report updates (replace with actual agent data)
+        // You'll need to listen to agent transcription events and update reportDisplay
+        // For now, this is a placeholder
+    </script>
+</body>
+</html>
