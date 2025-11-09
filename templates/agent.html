@@ -664,7 +664,12 @@
                 return;
             }
 
-            const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+            // const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+            const Document = window.docx.Document || docx.Document;
+            const Packer = window.docx.Packer || docx.Packer;
+            const Paragraph = window.docx.Paragraph || docx.Paragraph;
+            const TextRun = window.docx.TextRun || docx.TextRun;
+            const HeadingLevel = window.docx.HeadingLevel || docx.HeadingLevel;
 
             // Create document
             const doc = new Document({
