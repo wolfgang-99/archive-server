@@ -14,3 +14,4 @@ python-socketio==5.10.0
 # gevent-websocket==0.10.1
 gunicorn == 23.0.0
 livekit
+livekit-api
