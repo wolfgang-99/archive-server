@@ -502,7 +502,8 @@
                 addLog('🔄 Connecting to server...');
                 
                 // Get token from backend
-                const response = await fetch('http://localhost:5000/livekit_token');
+                // const response = await fetch('http://localhost:5000/livekit_token'); // for local testing
+                const response = await fetch('https://archive-server-70en.onrender.com/livekit_token');
                 const { url, token } = await response.json();
 
                 // Create room
